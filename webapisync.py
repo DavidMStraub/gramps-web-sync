@@ -26,13 +26,30 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
-from typing import Optional, Tuple
+from typing import List, Optional, Set, Tuple
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.utils import import_as_dict
+from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.merge.diff import diff_dbs
+from gramps.gen.user import User
 from gramps.gui.plug.tool import BatchTool, ToolOptions
+
+
+OBJ_LST = [
+    "Family",
+    "Person",
+    "Citation",
+    "Event",
+    "Media",
+    "Note",
+    "Place",
+    "Repository",
+    "Source",
+    "Tag",
+]
 
 
 class WebApiSyncTool(BatchTool):
@@ -140,6 +157,136 @@ class WebApiHandler:
 class WebApiSyncDiffHandler:
     """Class managing the difference between two databases."""
 
-    def __init__(self, db1: DbReadBase, db2: DbReadBase) -> None:
+    def __init__(self, db1: DbReadBase, db2: DbReadBase, user: User) -> None:
         self.db1 = db1
         self.db2 = db2
+        self.user = user
+        self._diff_dbs = self.get_diff_dbs()
+        self._latest_common_timestamp = self.get_latest_common_timestamp()
+
+    def get_diff_dbs(
+        self,
+    ) -> Tuple[
+        List[Tuple[str, GrampsObject, GrampsObject]],
+        List[Tuple[str, GrampsObject]],
+        List[Tuple[str, GrampsObject]],
+    ]:
+        """Return a database diff tuple: changed, missing from 1, missing from 2."""
+        return diff_dbs(self.db1, self.db2, user=self.user)
+
+    @property
+    def missing_from_db1(self) -> Set[GrampsObject]:
+        """Get list of objects missing in db1."""
+        return set([obj for (obj_type, obj) in self._diff_dbs[1]])
+
+    @property
+    def missing_from_db2(self) -> Set[GrampsObject]:
+        """Get list of objects missing in db2."""
+        return set([obj for obj_type, obj in self._diff_dbs[2]])
+
+    @property
+    def differences(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
+        """Get list of objects differing between the two databases."""
+        return set([(obj1, obj2) for (obj_type, obj1, obj2) in self._diff_dbs[0]])
+
+    def get_latest_common_timestamp(self) -> int:
+        """Get the timestamp of the latest common object."""
+        dates = [
+            self._get_latest_common_timestamp(class_name) or 0 for class_name in OBJ_LST
+        ]
+        return max(dates)
+
+    def _get_latest_common_timestamp(self, class_name: str) -> int:
+        """Get the timestamp of the latest common object of given type."""
+        handles_func = self.db1.method("get_%s_handles", class_name)
+        handle_func = self.db1.method("get_%s_from_handle", class_name)
+        # all handles in db1
+        all_handles = set(handles_func())
+        # all handles missing in db2
+        missing_in_db2 = set(
+            [
+                obj.handle
+                for obj in self.missing_from_db2
+                if obj.__class__.__name__ == class_name
+            ]
+        )
+        # all handles of objects that are different
+        different = set(
+            [
+                obj1.handle
+                for obj1, obj2 in self.differences
+                if obj1.__class__.__name__ == class_name
+            ]
+        )
+        # handles of all objects that are the same
+        same_handles = all_handles - missing_in_db2 - different
+        if not same_handles:
+            return None
+        date = 0
+        for handle in same_handles:
+            obj = handle_func(handle)
+            date = max(date, obj.change)
+        return date
+
+    @property
+    def modified_in_db1(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
+        """Objects that have been modifed in db1."""
+        return set(
+            [
+                (obj1, obj2)
+                for (obj1, obj2) in self.differences
+                if obj1.change > self._latest_common_timestamp
+                and obj2.change <= self._latest_common_timestamp
+            ]
+        )
+
+    @property
+    def modified_in_db2(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
+        """Objects that have been modifed in db1."""
+        return set(
+            [
+                (obj1, obj2)
+                for (obj1, obj2) in self.differences
+                if obj1.change <= self._latest_common_timestamp
+                and obj2.change > self._latest_common_timestamp
+            ]
+        )
+
+    @property
+    def modified_in_both(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
+        """Objects that have been modifed in both databases."""
+        return self.differences - self.modified_in_db1 - self.modified_in_db2
+
+    @property
+    def added_in_db1(self) -> Set[GrampsObject]:
+        """Objects that have been added in db1."""
+        return set(
+            [
+                obj
+                for obj in self.missing_from_db2
+                if obj.change > self._latest_common_timestamp
+            ]
+        )
+
+    @property
+    def deleted_from_db2(self) -> Set[GrampsObject]:
+        """Objects that have been deleted from db2."""
+        return self.missing_from_db2 - self.added_in_db1
+
+
+    @property
+    def added_in_db2(self) -> Set[GrampsObject]:
+        """Objects that have been added in db2."""
+        return set(
+            [
+                obj
+                for obj in self.missing_from_db1
+                if obj.change > self._latest_common_timestamp
+            ]
+        )
+
+    @property
+    def deleted_from_db1(self) -> Set[GrampsObject]:
+        """Objects that have been deleted from db1."""
+        return self.missing_from_db1 - self.added_in_db2
+
