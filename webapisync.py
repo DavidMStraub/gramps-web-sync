@@ -51,6 +51,17 @@ OBJ_LST = [
     "Tag",
 ]
 
+# actions: add, delete, update, merge - local/remote
+A_ADD_LOC = 0
+A_ADD_REM = 1
+A_DEL_LOC = 2
+A_DEL_REM = 3
+A_UPD_LOC = 4
+A_UPD_REM = 5
+A_MRG_LOC = 6
+A_MRG_REM = 7
+A_CONFLICT = 8
+
 
 class WebApiSyncTool(BatchTool):
     """Main class for the Web API Sync tool."""
@@ -316,3 +327,21 @@ class WebApiSyncDiffHandler:
             "modified in both": [obj_info(obj) for obj in self.modified_in_both],
         }
 
+    def get_actions(self):
+        """Get a list of objects and corresponding actions."""
+        lst = []
+        for (obj1, obj2) in self.modified_in_both:
+            lst.append((A_CONFLICT, obj1.handle, obj1.__class__.__name__, obj1, obj2))
+        for obj in self.added_to_db1:
+            lst.append((A_ADD_REM, obj.handle, obj.__class__.__name__, obj, None))
+        for obj in self.added_to_db2:
+            lst.append((A_ADD_REM, obj.handle, obj.__class__.__name__, obj, None))
+        for obj in self.deleted_from_db1:
+            lst.append((A_DEL_REM, obj.handle, obj.__class__.__name__, obj, None))
+        for obj in self.deleted_from_db2:
+            lst.append((A_DEL_LOC, obj.handle, obj.__class__.__name__, obj, None))
+        for (obj1, obj2) in self.modified_in_db1:
+            lst.append((A_UPD_REM, obj1.handle, obj1.__class__.__name__, obj1, obj2))
+        for (obj1, obj2) in self.modified_in_db2:
+            lst.append((A_UPD_LOC, obj1.handle, obj1.__class__.__name__, obj1, obj2))
+        return lst
