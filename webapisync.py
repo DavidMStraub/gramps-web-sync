@@ -23,6 +23,7 @@
 import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from time import sleep
 from typing import Optional
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -97,6 +98,7 @@ class WebApiHandler:
             print(exc.code)
             if exc.code == 401 and retry:
                 # in case of 401, retry once with a new token
+                sleep(1)  # avoid server-side rate limit
                 self.fetch_token()
                 return self.download_xml(retry=False)
             raise
