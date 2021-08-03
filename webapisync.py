@@ -291,25 +291,14 @@ class WebApiSyncDiffHandler:
         )
 
     @property
-    def deleted_from_db2(self) -> Set[GrampsObject]:
-        """Objects that have been deleted from db2."""
-        return self.missing_from_db2 - self.added_to_db1
-
-    @property
-    def added_to_db2(self) -> Set[GrampsObject]:
-        """Objects that have been added in db2."""
-        return set(
-            [
-                obj
-                for obj in self.missing_from_db1
-                if obj.change > self._latest_common_timestamp
-            ]
-        )
-
-    @property
     def deleted_from_db1(self) -> Set[GrampsObject]:
         """Objects that have been deleted from db1."""
         return self.missing_from_db1 - self.added_to_db2
+
+    @property
+    def deleted_from_db2(self) -> Set[GrampsObject]:
+        """Objects that have been deleted from db2."""
+        return self.missing_from_db2 - self.added_to_db1
 
     def get_summary(self):
         """Get a dictionary summarizing the changes."""
