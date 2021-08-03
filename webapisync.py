@@ -335,7 +335,7 @@ class WebApiSyncDiffHandler:
         for obj in self.added_to_db1:
             lst.append((A_ADD_REM, obj.handle, obj.__class__.__name__, obj, None))
         for obj in self.added_to_db2:
-            lst.append((A_ADD_REM, obj.handle, obj.__class__.__name__, obj, None))
+            lst.append((A_ADD_LOC, obj.handle, obj.__class__.__name__, obj, None))
         for obj in self.deleted_from_db1:
             lst.append((A_DEL_REM, obj.handle, obj.__class__.__name__, obj, None))
         for obj in self.deleted_from_db2:
