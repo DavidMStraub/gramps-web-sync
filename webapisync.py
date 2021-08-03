@@ -62,6 +62,8 @@ A_MRG_LOC = 6
 A_MRG_REM = 7
 A_CONFLICT = 8
 
+Actions = List[Tuple[int, str, str, GrampsObject, Optional[GrampsObject]]]
+
 
 class WebApiSyncTool(BatchTool):
     """Main class for the Web API Sync tool."""
@@ -75,6 +77,8 @@ class WebApiSyncTool(BatchTool):
         if db2 is None:
             return
         self.sync = WebApiSyncDiffHandler(db1, db2, user=self._user)
+        actions = self.sync.get_actions()
+        actions = self.edit_actions(actions)
 
     def get_api_credentials(self) -> Tuple[str, str, str]:
         """Get the API credentials."""
@@ -88,6 +92,10 @@ class WebApiSyncTool(BatchTool):
         db2 = import_as_dict(str(path), self._user)
         path.unlink()  # delete temporary file
         return db2
+    
+    def edit_actions(self, actions: Actions) -> Actions:
+        """Edit the automatically generated actions via user interaction."""
+        return actions  # FIXME
 
 
 class WebApiSyncOptions(ToolOptions):
@@ -316,7 +324,7 @@ class WebApiSyncDiffHandler:
             "modified in both": [obj_info(obj) for obj in self.modified_in_both],
         }
 
-    def get_actions(self):
+    def get_actions(self) -> Actions:
         """Get a list of objects and corresponding actions."""
         lst = []
         for (obj1, obj2) in self.modified_in_both:
