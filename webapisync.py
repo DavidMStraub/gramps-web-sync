@@ -63,7 +63,7 @@ class WebApiSyncTool(BatchTool):
         db2 = self.get_remote_db()
         if db2 is None:
             return
-        self.sync = WebApiSyncDiffHandler(db1, db2)
+        self.sync = WebApiSyncDiffHandler(db1, db2, user=self._user)
 
     def get_api_credentials(self) -> Tuple[str, str, str]:
         """Get the API credentials."""
