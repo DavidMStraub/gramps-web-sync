@@ -20,7 +20,7 @@
 
 """Gramps addon to synchronize with a Gramps Web API server."""
 
-from gramps.gui.plug.tool import BatchTool
+from gramps.gui.plug.tool import BatchTool, ToolOptions
 
 
 class WebApiSyncTool(BatchTool):
@@ -31,3 +31,5 @@ class WebApiSyncTool(BatchTool):
         if self.fail:
             return
 
+class WebApiSyncOptions(ToolOptions):
+    """Options for Web API Sync."""
