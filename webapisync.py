@@ -20,14 +20,18 @@
 
 """Gramps addon to synchronize with a Gramps Web API server."""
 
+import gzip
 import json
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
-from typing import Optional
+from typing import Optional, Tuple
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from gramps.gen.db.base import DbReadBase
+from gramps.gen.db.utils import import_as_dict
 from gramps.gui.plug.tool import BatchTool, ToolOptions
 
 
@@ -38,6 +42,24 @@ class WebApiSyncTool(BatchTool):
         super().__init__(dbstate, user, options_class, name)
         if self.fail:
             return
+        db1 = dbstate.db
+        db2 = self.get_remote_db()
+        if db2 is None:
+            return
+        self.sync = WebApiSyncDiffHandler(db1, db2)
+
+    def get_api_credentials(self) -> Tuple[str, str, str]:
+        """Get the API credentials."""
+        return "url", "username", "password"  # FIXME
+
+    def get_remote_db(self) -> Optional[DbReadBase]:
+        """Download the remote data and return it as in-memory database."""
+        url, username, password = self.get_api_credentials()
+        self.api = WebApiHandler(url, username, password)
+        path = self.api.download_xml()
+        db2 = import_as_dict(str(path), self._user)
+        path.unlink()  # delete temporary file
+        return db2
 
 
 class WebApiSyncOptions(ToolOptions):
@@ -102,8 +124,22 @@ class WebApiHandler:
                 self.fetch_token()
                 return self.download_xml(retry=False)
             raise
-        return Path(temp.name)
+        temp.close()
+        unzipped_name = f"{temp.name}.gramps"
+        with open(unzipped_name, "wb") as fu:
+            with gzip.open(temp.name) as fz:
+                fu.write(fz.read())
+        os.remove(temp.name)
+        return Path(unzipped_name)
 
     def apply_changes(self, trans):
         """Apply the changes to the remote database."""
         raise NotImplementedError
+
+
+class WebApiSyncDiffHandler:
+    """Class managing the difference between two databases."""
+
+    def __init__(self, db1: DbReadBase, db2: DbReadBase) -> None:
+        self.db1 = db1
+        self.db2 = db2
