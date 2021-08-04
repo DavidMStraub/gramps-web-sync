@@ -26,16 +26,29 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
-from typing import List, Optional, Set, Tuple
-from urllib.error import HTTPError
+from typing import Callable, List, Optional, Set, Tuple
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from gi.repository import Gtk
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.utils import import_as_dict
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.merge.diff import diff_dbs
 from gramps.gen.user import User
+from gramps.gui.dialog import ErrorDialog, QuestionDialog2, WarningDialog
+from gramps.gui.managedwindow import ManagedWindow
 from gramps.gui.plug.tool import BatchTool, ToolOptions
+from gramps.gui.utils import ProgressMeter
+
+try:
+    _trans = glocale.get_addon_translator(__file__)
+except ValueError:
+    _trans = glocale.translation
+_ = _trans.gettext
+ngettext = _trans.ngettext
 
 
 OBJ_LST = [
@@ -79,23 +92,129 @@ class WebApiSyncTool(BatchTool):
         self.sync = WebApiSyncDiffHandler(db1, db2, user=self._user)
         actions = self.sync.get_actions()
         actions = self.edit_actions(actions)
-
-    def get_api_credentials(self) -> Tuple[str, str, str]:
-        """Get the API credentials."""
-        return "url", "username", "password"  # FIXME
+        print(actions)
 
     def get_remote_db(self) -> Optional[DbReadBase]:
         """Download the remote data and return it as in-memory database."""
-        url, username, password = self.get_api_credentials()
+        login = LoginDialog(self._user.uistate)
+        credentials = login.run()
+        if credentials is None:
+            return None
+        url, username, password = credentials
         self.api = WebApiHandler(url, username, password)
-        path = self.api.download_xml()
+        path = self.handle_server_errors(self.api.download_xml)
+        if path is None:
+            return None
+        self._progress = ProgressMeter(
+            _("Web API Sync"), _("Processing remote data...")
+        )
+        # importxml uses the user.callback(percentage) for progress
+        # not compatible with usual user progress. So bypass step()
+        self._user.callback_function = self._progress_step
         db2 = import_as_dict(str(path), self._user)
+        self._progress.close()
         path.unlink()  # delete temporary file
         return db2
-    
+
+    def _progress_step(self, percent):
+        """Hack to allow import XML callback progress to work."""
+        self._progress._ProgressMeter__pbar_index = percent - 1.0
+        self._progress.step()
+
+    def handle_server_errors(self, callback: Callable):
+        """Handle server errors while executing a function."""
+        try:
+            return callback()
+        except HTTPError as exc:
+            if exc.code == 401:
+                ErrorDialog(_("Server authorization error."))
+            else:
+                ErrorDialog(_("Error connecting to server."))
+            return None
+        except URLError:
+            ErrorDialog(_("Error connecting to server."))
+            return None
+        except ValueError:
+            ErrorDialog(_("Error while parsing response from server."))
+            return None
+
     def edit_actions(self, actions: Actions) -> Actions:
         """Edit the automatically generated actions via user interaction."""
         return actions  # FIXME
+
+
+class LoginDialog(ManagedWindow):
+    """Login dialog."""
+
+    def __init__(self, uistate):
+        """Initialize self."""
+        self.title = _("Login")
+        super().__init__(uistate, [], self.__class__, modal=True)
+        dialog = Gtk.Dialog(transient_for=uistate.window)
+        grid = Gtk.Grid()
+        grid.set_border_width(6)
+        grid.set_row_spacing(6)
+        grid.set_column_spacing(6)
+        label = Gtk.Label(label=_("Server URL: "))
+        grid.attach(label, 0, 0, 1, 1)
+        self.url = Gtk.Entry()
+        self.url.set_hexpand(True)
+        self.url.set_input_purpose(Gtk.InputPurpose.URL)
+        grid.attach(self.url, 1, 0, 1, 1)
+        label = Gtk.Label(label=_("Username: "))
+        grid.attach(label, 0, 1, 1, 1)
+        self.username = Gtk.Entry()
+        self.username.set_hexpand(True)
+        grid.attach(self.username, 1, 1, 1, 1)
+        label = Gtk.Label(label=_("Password: "))
+        grid.attach(label, 0, 2, 1, 1)
+        self.password = Gtk.Entry()
+        self.password.set_hexpand(True)
+        self.password.set_visibility(False)
+        self.password.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+        grid.attach(self.password, 1, 2, 1, 1)
+        dialog.vbox.pack_start(grid, True, True, 0)
+        dialog.add_buttons(
+            _("_Cancel"), Gtk.ResponseType.CANCEL, _("Login"), Gtk.ResponseType.OK
+        )
+        self.set_window(dialog, None, self.title)
+
+    def run(self) -> Optional[Tuple[str, str, str]]:
+        """Run the dialog and return the credentials or None."""
+        self.show()
+        response = self.window.run()
+        url = self.url.get_text()
+        url = self.sanitize_url(url)
+        username = self.username.get_text()
+        password = self.password.get_text()
+        self.close()
+        if response == Gtk.ResponseType.CANCEL or url is None:
+            return None
+        elif response == Gtk.ResponseType.OK:
+            return url, username, password
+
+    def sanitize_url(self, url: str) -> Optional[str]:
+        """Warn if http and prepend https if missing."""
+        parsed_url = urlparse(url)
+        if parsed_url.scheme == "":
+            # if no httpX given, prepend https!
+            url = f"https://{url}"
+        elif parsed_url.scheme == "http":
+            question = QuestionDialog2(
+                _("Continue without transport encryption?"),
+                _(
+                    "You have specified a URL with http scheme. "
+                    "If you continue, your password will be sent "
+                    "in clear text over the network. "
+                    "Use only for local testing!"
+                ),
+                _("Continue"),
+                _("Abort"),
+                parent=self.window,
+            )
+            if not question.run():
+                return None
+        return url
 
 
 class WebApiSyncOptions(ToolOptions):
@@ -127,14 +246,11 @@ class WebApiHandler:
             data=data.encode(),
             headers={"Content-Type": "application/json"},
         )
-        try:
-            res = urlopen(req)
-        except HTTPError:
-            raise
+        res = urlopen(req)
         try:
             res_json = json.load(res)
         except (UnicodeDecodeError, json.JSONDecodeError):
-            raise
+            raise ValueError("Error while parsing response.")
         self._access_token = res_json["access_token"]
 
     def download_xml(self, retry: bool = True) -> Path:
@@ -153,7 +269,6 @@ class WebApiHandler:
                 chunk = res.read(chunk_size)
                 temp.write(chunk)
         except HTTPError as exc:
-            print(exc.code)
             if exc.code == 401 and retry:
                 # in case of 401, retry once with a new token
                 sleep(1)  # avoid server-side rate limit
