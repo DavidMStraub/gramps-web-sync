@@ -23,6 +23,7 @@
 import gzip
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
@@ -612,6 +613,13 @@ class WebApiSyncDiffHandler:
             self.db1.method("commit_%s", obj_type)(obj2, trans1)
         elif typ == A_UPD_REM:
             self.db2.method("commit_%s", obj_type)(obj1, trans2)
+        elif typ == A_MRG_REM:
+            obj_merged = deepcopy(obj2)
+            obj1_nogid = deepcopy(obj1)
+            obj1_nogid.gramps_id = None
+            obj_merged.merge(obj1_nogid)
+            self.db1.method("commit_%s", obj_type)(obj_merged, trans1)
+            self.db2.method("commit_%s", obj_type)(obj_merged, trans2)
 
     def commit_actions(self, actions: Actions, trans1: DbTxn, trans2: DbTxn) -> None:
         """Commit several actions into local and remote transaction objects."""
