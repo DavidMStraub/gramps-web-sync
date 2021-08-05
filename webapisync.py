@@ -119,8 +119,12 @@ class WebApiSyncTool(BatchTool):
         self.config.set("credentials.username", username)
         self.config.set("credentials.password", password)
         self.config.save()
-        self.api = WebApiHandler(url, username, password)
+        self._progress = ProgressMeter(
+            _("Web API Sync"), _("Downloading remote data...")
+        )
+        self.api = WebApiHandler(url, username, password, download_callback=self._progress.step)
         path = self.handle_server_errors(self.api.download_xml)
+        self._progress.close()
         if path is None:
             return None
         self._progress = ProgressMeter(
@@ -354,12 +358,13 @@ class WebApiSyncOptions(ToolOptions):
 class WebApiHandler:
     """Web API connection handler."""
 
-    def __init__(self, url: str, username: str, password: str) -> None:
+    def __init__(self, url: str, username: str, password: str, download_callback: Optional[Callable] = None) -> None:
         """Initialize given URL, user name, and password."""
         self.url = url.rstrip("/")
         self.username = username
         self.password = password
         self._access_token: Optional[str] = None
+        self.download_callback = download_callback
 
     @property
     def access_token(self) -> str:
@@ -397,6 +402,8 @@ class WebApiHandler:
             chunk = res.read(chunk_size)
             temp.write(chunk)
             while chunk:
+                if self.download_callback is not None:
+                    self.download_callback()
                 chunk = res.read(chunk_size)
                 temp.write(chunk)
         except HTTPError as exc:
