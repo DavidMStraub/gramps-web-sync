@@ -32,7 +32,7 @@ register(
     ),
     version="0.1",
     gramps_target_version="5.1",
-    status=UNSTABLE,
+    status=STABLE,
     fname="webapisync.py",
     authors=["David Straub"],
     authors_email=["straub@protonmail.com"],

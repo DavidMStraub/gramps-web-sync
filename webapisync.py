@@ -39,13 +39,12 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
-from gramps.gen.db.txn import DbTxn
 from gramps.gen.db.utils import import_as_dict
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import to_json
 from gramps.gen.merge.diff import diff_dbs
 from gramps.gen.user import User
-from gramps.gui.dialog import ErrorDialog, QuestionDialog2, WarningDialog
+from gramps.gui.dialog import ErrorDialog, QuestionDialog2
 from gramps.gui.managedwindow import ManagedWindow
 from gramps.gui.plug.tool import BatchTool, ToolOptions
 from gramps.gui.utils import ProgressMeter
@@ -123,7 +122,9 @@ class WebApiSyncTool(BatchTool):
         self._progress = ProgressMeter(
             _("Web API Sync"), _("Downloading remote data...")
         )
-        self.api = WebApiHandler(url, username, password, download_callback=self._progress.step)
+        self.api = WebApiHandler(
+            url, username, password, download_callback=self._progress.step
+        )
         path = self.handle_server_errors(self.api.download_xml)
         self._progress.close()
         if path is None:
@@ -144,15 +145,23 @@ class WebApiSyncTool(BatchTool):
         self._progress._ProgressMeter__pbar_index = percent - 1.0
         self._progress.step()
 
-    def handle_server_errors(self, callback: Callable):
+    def handle_server_errors(self, callback: Callable, *args):
         """Handle server errors while executing a function."""
         try:
-            return callback()
+            return callback(*args)
         except HTTPError as exc:
             if exc.code == 401:
                 ErrorDialog(_("Server authorization error."))
+            elif exc.code == 403:
+                ErrorDialog(_("Server authorization error: insufficient permissions."))
+            elif exc.code == 409:
+                ErrorDialog(
+                    _(
+                        "Unable to synchronize changes to server: objects have been modified."
+                    )
+                )
             else:
-                ErrorDialog(_("Error connecting to server."))
+                ErrorDialog(_("Error %s while connecting to server.") % exc.code)
             return None
         except URLError:
             ErrorDialog(_("Error connecting to server."))
@@ -172,7 +181,7 @@ class WebApiSyncTool(BatchTool):
         with DbTxn(msg, self.sync.db1) as trans1:
             with DbTxn(msg, self.sync.db2) as trans2:
                 self.sync.commit_actions(self.actions, trans1, trans2)
-                self.api.commit(trans2)
+                self.handle_server_errors(self.api.commit, trans2)
 
 
 class LoginDialog(ManagedWindow):
@@ -359,7 +368,13 @@ class WebApiSyncOptions(ToolOptions):
 class WebApiHandler:
     """Web API connection handler."""
 
-    def __init__(self, url: str, username: str, password: str, download_callback: Optional[Callable] = None) -> None:
+    def __init__(
+        self,
+        url: str,
+        username: str,
+        password: str,
+        download_callback: Optional[Callable] = None,
+    ) -> None:
         """Initialize given URL, user name, and password."""
         self.url = url.rstrip("/")
         self.username = username
@@ -425,7 +440,17 @@ class WebApiHandler:
     def commit(self, trans):
         """Commit the changes to the remote database."""
         payload = transaction_to_json(trans)
-        print(payload)  # FIXME
+        if payload:
+            data = json.dumps(payload).encode()
+            req = Request(
+                f"{self.url}/transactions/",
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.access_token}",
+                },
+            )
+            urlopen(req)
 
 
 class WebApiSyncDiffHandler:
@@ -436,6 +461,16 @@ class WebApiSyncDiffHandler:
         self.db2 = db2
         self.user = user
         self._diff_dbs = self.get_diff_dbs()
+        self.differences = {
+            (obj1.handle, obj_type): (obj1, obj2)
+            for (obj_type, obj1, obj2) in self._diff_dbs[0]
+        }
+        self.missing_from_db1 = {
+            (obj.handle, obj_type): obj for (obj_type, obj) in self._diff_dbs[1]
+        }
+        self.missing_from_db2 = {
+            (obj.handle, obj_type): obj for (obj_type, obj) in self._diff_dbs[2]
+        }
         self._latest_common_timestamp = self.get_latest_common_timestamp()
 
     def get_diff_dbs(
@@ -447,21 +482,6 @@ class WebApiSyncDiffHandler:
     ]:
         """Return a database diff tuple: changed, missing from 1, missing from 2."""
         return diff_dbs(self.db1, self.db2, user=self.user)
-
-    @property
-    def missing_from_db1(self) -> Set[GrampsObject]:
-        """Get list of objects missing in db1."""
-        return set([obj for (obj_type, obj) in self._diff_dbs[1]])
-
-    @property
-    def missing_from_db2(self) -> Set[GrampsObject]:
-        """Get list of objects missing in db2."""
-        return set([obj for obj_type, obj in self._diff_dbs[2]])
-
-    @property
-    def differences(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
-        """Get list of objects differing between the two databases."""
-        return set([(obj1, obj2) for (obj_type, obj1, obj2) in self._diff_dbs[0]])
 
     def get_latest_common_timestamp(self) -> int:
         """Get the timestamp of the latest common object."""
@@ -478,19 +498,15 @@ class WebApiSyncDiffHandler:
         all_handles = set(handles_func())
         # all handles missing in db2
         missing_in_db2 = set(
-            [
-                obj.handle
-                for obj in self.missing_from_db2
-                if obj.__class__.__name__ == class_name
-            ]
+            handle
+            for handle, obj_type in self.missing_from_db2.keys()
+            if obj_type == class_name
         )
         # all handles of objects that are different
         different = set(
-            [
-                obj1.handle
-                for obj1, obj2 in self.differences
-                if obj1.__class__.__name__ == class_name
-            ]
+            handle
+            for handle, obj_type in self.differences.keys()
+            if obj_type == class_name
         )
         # handles of all objects that are the same
         same_handles = all_handles - missing_in_db2 - different
@@ -503,99 +519,99 @@ class WebApiSyncDiffHandler:
         return date
 
     @property
-    def modified_in_db1(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
+    def modified_in_db1(self) -> Set[Tuple[str, str]]:
         """Objects that have been modifed in db1."""
-        return set(
-            [
-                (obj1, obj2)
-                for (obj1, obj2) in self.differences
-                if obj1.change > self._latest_common_timestamp
-                and obj2.change <= self._latest_common_timestamp
-            ]
-        )
+        return {
+            k: (obj1, obj2)
+            for k, (obj1, obj2) in self.differences.items()
+            if obj1.change > self._latest_common_timestamp
+            and obj2.change <= self._latest_common_timestamp
+        }
 
     @property
     def modified_in_db2(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
         """Objects that have been modifed in db1."""
-        return set(
-            [
-                (obj1, obj2)
-                for (obj1, obj2) in self.differences
-                if obj1.change <= self._latest_common_timestamp
-                and obj2.change > self._latest_common_timestamp
-            ]
-        )
+        return {
+            k: (obj1, obj2)
+            for k, (obj1, obj2) in self.differences.items()
+            if obj1.change <= self._latest_common_timestamp
+            and obj2.change > self._latest_common_timestamp
+        }
 
     @property
     def modified_in_both(self) -> Set[Tuple[GrampsObject, GrampsObject]]:
         """Objects that have been modifed in both databases."""
-        return self.differences - self.modified_in_db1 - self.modified_in_db2
+        return {
+            k: v
+            for k, v in self.differences.items()
+            if k not in self.modified_in_db1 and k not in self.modified_in_db2
+        }
 
     @property
     def added_to_db1(self) -> Set[GrampsObject]:
         """Objects that have been added to db1."""
-        return set(
-            [
-                obj
-                for obj in self.missing_from_db2
-                if obj.change > self._latest_common_timestamp
-            ]
-        )
+        return {
+            k: obj
+            for (k, obj) in self.missing_from_db2.items()
+            if obj.change > self._latest_common_timestamp
+        }
 
     @property
     def added_to_db2(self) -> Set[GrampsObject]:
         """Objects that have been added to db2."""
-        return set(
-            [
-                obj
-                for obj in self.missing_from_db1
-                if obj.change > self._latest_common_timestamp
-            ]
-        )
+        return {
+            k: obj
+            for (k, obj) in self.missing_from_db1.items()
+            if obj.change > self._latest_common_timestamp
+        }
 
     @property
     def deleted_from_db1(self) -> Set[GrampsObject]:
         """Objects that have been deleted from db1."""
-        return self.missing_from_db1 - self.added_to_db2
+        return {
+            k: v for k, v in self.missing_from_db1.items() if k not in self.added_to_db2
+        }
 
     @property
     def deleted_from_db2(self) -> Set[GrampsObject]:
         """Objects that have been deleted from db2."""
-        return self.missing_from_db2 - self.added_to_db1
-
-    def get_summary(self):
-        """Get a dictionary summarizing the changes."""
-
-        def obj_info(obj):
-            return {"handle": obj, "_class": obj.__class__.__name__}
-
         return {
-            "added to db1": [obj_info(obj) for obj in self.added_to_db1],
-            "added to db2": [obj_info(obj) for obj in self.added_to_db2],
-            "deleted from db1": [obj_info(obj) for obj in self.deleted_from_db1],
-            "deleted from db2": [obj_info(obj) for obj in self.deleted_from_db2],
-            "modified in db1": [obj_info(obj) for obj in self.modified_in_db1],
-            "modified in db2": [obj_info(obj) for obj in self.modified_in_db2],
-            "modified in both": [obj_info(obj) for obj in self.modified_in_both],
+            k: v for k, v in self.missing_from_db2.items() if k not in self.added_to_db1
         }
+
+    # def get_summary(self):
+    #     """Get a dictionary summarizing the changes."""
+
+    #     def obj_info(obj):
+    #         return {"handle": obj, "_class": obj.__class__.__name__}
+
+    #     return {
+    #         "added to db1": [obj_info(obj) for obj in self.added_to_db1.values()],
+    #         "added to db2": [obj_info(obj) for obj in self.added_to_db2.values()],
+    #         "deleted from db1": [obj_info(obj) for obj in self.deleted_from_db1.values()],
+    #         "deleted from db2": [obj_info(obj) for obj in self.deleted_from_db2.values()],
+    #         "modified in db1": [obj_info(obj) for obj in self.modified_in_db1.values()],
+    #         "modified in db2": [obj_info(obj) for obj in self.modified_in_db2.values()],
+    #         "modified in both": [obj_info(obj) for obj in self.modified_in_both.values()],
+    #     }
 
     def get_actions(self) -> Actions:
         """Get a list of objects and corresponding actions."""
         lst = []
-        for (obj1, obj2) in self.modified_in_both:
-            lst.append((A_MRG_REM, obj1.handle, obj1.__class__.__name__, obj1, obj2))
-        for obj in self.added_to_db1:
-            lst.append((A_ADD_REM, obj.handle, obj.__class__.__name__, obj, None))
-        for obj in self.added_to_db2:
-            lst.append((A_ADD_LOC, obj.handle, obj.__class__.__name__, None, obj))
-        for obj in self.deleted_from_db1:
-            lst.append((A_DEL_REM, obj.handle, obj.__class__.__name__, None, obj))
-        for obj in self.deleted_from_db2:
-            lst.append((A_DEL_LOC, obj.handle, obj.__class__.__name__, obj, None))
-        for (obj1, obj2) in self.modified_in_db1:
-            lst.append((A_UPD_REM, obj1.handle, obj1.__class__.__name__, obj1, obj2))
-        for (obj1, obj2) in self.modified_in_db2:
-            lst.append((A_UPD_LOC, obj1.handle, obj1.__class__.__name__, obj1, obj2))
+        for (handle, obj_type), (obj1, obj2) in self.modified_in_both.items():
+            lst.append((A_MRG_REM, handle, obj_type, obj1, obj2))
+        for (handle, obj_type), obj in self.added_to_db1.items():
+            lst.append((A_ADD_REM, handle, obj_type, obj, None))
+        for (handle, obj_type), obj in self.added_to_db2.items():
+            lst.append((A_ADD_LOC, handle, obj_type, None, obj))
+        for (handle, obj_type), obj in self.deleted_from_db1.items():
+            lst.append((A_DEL_REM, handle, obj_type, None, obj))
+        for (handle, obj_type), obj in self.deleted_from_db2.items():
+            lst.append((A_DEL_LOC, handle, obj_type, obj, None))
+        for (handle, obj_type), (obj1, obj2) in self.modified_in_db1.items():
+            lst.append((A_UPD_REM, handle, obj_type, obj1, obj2))
+        for (handle, obj_type), (obj1, obj2) in self.modified_in_db2.items():
+            lst.append((A_UPD_LOC, handle, obj_type, obj1, obj2))
         return lst
 
     def commit_action(self, action: Action, trans1: DbTxn, trans2: DbTxn) -> None:
@@ -630,7 +646,7 @@ class WebApiSyncDiffHandler:
 def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
     """Return a JSON representation of a database transaction."""
     out = []
-    for recno in transaction.get_recnos(reverse=True):
+    for recno in transaction.get_recnos(reverse=False):
         key, action, handle, old_data, new_data = transaction.get_record(recno)
         try:
             obj_cls_name = KEY_TO_CLASS_MAP[key]
