@@ -35,7 +35,6 @@ class WebApiHandler:
         # get and cache the access token
         self.fetch_token()
 
-
     @property
     def access_token(self) -> str:
         """Get the access token. Cached after first call"""
@@ -58,7 +57,6 @@ class WebApiHandler:
             self.url = f"{self.url}/api"
             return self.fetch_token()
         self._access_token = res_json["access_token"]
-
 
     def get_lang(self) -> Optional[str]:
         """Fetch language information."""
@@ -122,6 +120,23 @@ class WebApiHandler:
             urlopen(req)
 
 
+# special cases for type names. See https://github.com/gramps-project/gramps-webapi/issues/163#issuecomment-940361882
+_type_name_special_cases = {
+    "Father Age": "Father's Age",
+    "Mother Age": "Mother's Age",
+    "BIC": "Born In Covenant",
+    "DNS": "Do not seal",
+    "DNS/CAN": "Do not seal/Cancel",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "fontface": "Fontface",
+    "fontsize": "Fontsize",
+    "fontcolor": "Fontcolor",
+    "highlight": "Highlight",
+    "superscript": "Superscript",
+    "link": "Link",
+}
 
 
 def to_json(obj, lang: Optional[str] = None) -> str:
@@ -130,45 +145,41 @@ def to_json(obj, lang: Optional[str] = None) -> str:
 
     Patched from `gramps.gen.serialize` to allow translation of type names.
     """
+
     def __default(obj):
-        obj_dict = {'_class': obj.__class__.__name__}
+        obj_dict = {"_class": obj.__class__.__name__}
         if isinstance(obj, gramps.gen.lib.GrampsType):
             if not lang:
-                obj_dict['string'] = getattr(obj, "string")
+                obj_dict["string"] = getattr(obj, "string")
             else:
                 # if the remote locale is different from the local one,
                 # need to translate type names.
                 glocale = GrampsLocale(lang=lang)
                 # In most cases, the xml_str
-                # is the same as the gettext message, to it can just be translated.
-                s_xml = obj.xml_str()
-                s_trans = glocale.translation.gettext(s_xml)
-                if s_xml == s_trans:
-                    # but sometimes, they are different. In this case, the
-                    # translated string will be unchanged.
-                    # Many cases are covered by capitalizing the XML string.
-                    # if this works, use it.
-                    s_trans_2 = glocale.translation.gettext(s_xml.capitalize())
-                    if s_xml != s_trans_2:
-                        s_trans = s_trans_2
-                obj_dict['string'] = s_trans
+                # is the same as the gettext message, so it can just be translated.
+                s_untrans = obj.xml_str()
+                # handle exceptional cases
+                s_untrans = _type_name_special_cases.get(s_untrans, s_untrans)
+                # translate
+                obj_dict["string"] = glocale.translation.gettext(s_untrans)
         if isinstance(obj, gramps.gen.lib.Date):
             if obj.is_empty() and not obj.text:
                 return None
         for key, value in obj.__dict__.items():
-            if not key.startswith('_'):
+            if not key.startswith("_"):
                 obj_dict[key] = value
         for key, value in obj.__class__.__dict__.items():
             if isinstance(value, property):
-                if key != 'year':
+                if key != "year":
                     obj_dict[key] = getattr(obj, key)
         return obj_dict
 
     return json.dumps(obj, default=__default, ensure_ascii=False)
 
 
-
-def transaction_to_json(transaction: DbTxn, lang: Optional[str] = None) -> List[Dict[str, Any]]:
+def transaction_to_json(
+    transaction: DbTxn, lang: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Return a JSON representation of a database transaction."""
     out = []
     for recno in transaction.get_recnos(reverse=False):
