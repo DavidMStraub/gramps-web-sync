@@ -1,7 +1,7 @@
 """Class managing the difference between two databases."""
 
 from copy import deepcopy
-from typing import List, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
@@ -26,7 +26,13 @@ from const import (
 class WebApiSyncDiffHandler:
     """Class managing the difference between two databases."""
 
-    def __init__(self, db1: DbReadBase, db2: DbReadBase, user: User) -> None:
+    def __init__(
+        self,
+        db1: DbReadBase,
+        db2: DbReadBase,
+        user: User,
+        last_synced: Optional[float] = None,
+    ) -> None:
         """Initialize given the two databases and a User instance."""
         self.db1 = db1
         self.db2 = db2
@@ -43,6 +49,10 @@ class WebApiSyncDiffHandler:
             (obj.handle, obj_type): obj for (obj_type, obj) in self._diff_dbs[2]
         }
         self._latest_common_timestamp = self.get_latest_common_timestamp()
+        if last_synced and last_synced > self._latest_common_timestamp:
+            # if the last sync timestamp in the config is later than
+            # the latest common timestamp, use it
+            self._latest_common_timestamp = last_synced
 
     def get_diff_dbs(
         self,

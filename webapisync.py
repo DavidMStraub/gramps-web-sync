@@ -18,6 +18,7 @@
 
 """Gramps addon to synchronize with a Gramps Web API server."""
 
+from datetime import datetime
 from typing import Callable, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -81,16 +82,23 @@ class WebApiSyncTool(BatchTool):
         self.config = configman.register_manager("webapisync")
         self.config.register("credentials.url", "")
         self.config.register("credentials.username", "")
+        self.config.register("credentials.timestamp", 0)
         self.config.load()
         if self.fail:
             return
         # load remote db asking for the login credentials
         db1 = dbstate.db
+        self._download_timestamp = 0
         db2 = self.get_remote_db()
         if db2 is None:
             return
+        # get the last synced timestamp
+        timestamp = self.config.get("credentials.timestamp") or None
+        # to be saved later
         # get the necessary sync actions
-        self.sync = WebApiSyncDiffHandler(db1, db2, user=self._user)
+        self.sync = WebApiSyncDiffHandler(
+            db1, db2, user=self._user, last_synced=timestamp
+        )
         self.actions = self.sync.get_actions()
         if not self.actions:
             return self.unchanged_dialog()
@@ -112,6 +120,9 @@ class WebApiSyncTool(BatchTool):
         if credentials is None:
             return None
         url, username, password = credentials
+        if url != self.config.get("credentials.url"):
+            # if URL changed, clear last sync timestamp
+            self.config.set("credentials.timestamp", 0)
         self.config.set("credentials.url", url)
         self.config.set("credentials.username", username)
         set_password(url, username, password)
@@ -122,6 +133,8 @@ class WebApiSyncTool(BatchTool):
         self.api = WebApiHandler(
             url, username, password, download_callback=self._progress.step
         )
+        # store timestamp just before downloading the XML
+        self._download_timestamp = datetime.now().timestamp()
         path = self.handle_server_errors(self.api.download_xml)
         self._progress.close()
         if path is None:
@@ -175,6 +188,7 @@ class WebApiSyncTool(BatchTool):
     def unchanged_dialog(self):
         """Return a dialog if nothing has changed."""
         OkDialog(_("Your Tree and import are the same."))
+        self.save_timestamp()
 
     def commit(self):
         """Commit all changes to the databases."""
@@ -183,6 +197,12 @@ class WebApiSyncTool(BatchTool):
             with DbTxn(msg, self.sync.db2) as trans2:
                 self.sync.commit_actions(self.actions, trans1, trans2)
                 self.handle_server_errors(self.api.commit, trans2)
+        self.save_timestamp()
+
+    def save_timestamp(self):
+        """Save last sync timestamp."""
+        self.config.set("credentials.timestamp", self._download_timestamp)
+        self.config.save()
 
 
 class LoginDialog(ManagedWindow):
