@@ -75,6 +75,7 @@ class WebApiSyncDiffHandler:
         """Get the timestamp of the latest common object of given type."""
         handles_func = self.db1.method("get_%s_handles", class_name)
         handle_func = self.db1.method("get_%s_from_handle", class_name)
+        handle_func_db2 = self.db2.method("get_%s_from_handle", class_name)
         # all handles in db1
         all_handles = set(handles_func())
         # all handles missing in db2
@@ -96,7 +97,9 @@ class WebApiSyncDiffHandler:
         date = 0
         for handle in same_handles:
             obj = handle_func(handle)
-            date = max(date, obj.change)
+            obj2 = handle_func_db2(handle)
+            if obj.change == obj2.change:  # make sure last mod dates are equal
+                date = max(date, obj.change)
         return date
 
     @property
