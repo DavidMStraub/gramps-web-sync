@@ -50,9 +50,9 @@ class WebApiHandler:
             data=data.encode(),
             headers={"Content-Type": "application/json"},
         )
-        res = urlopen(req)
         try:
-            res_json = json.load(res)
+            with urlopen(req) as res:
+                res_json = json.load(res)
         except (UnicodeDecodeError, json.JSONDecodeError):
             self.url = f"{self.url}/api"
             return self.fetch_token()
@@ -64,38 +64,21 @@ class WebApiHandler:
             f"{self.url}/metadata/",
             headers={"Authorization": f"Bearer {self.access_token}"},
         )
-        res = urlopen(req)
-        try:
-            res_json = json.load(res)
-        except (UnicodeDecodeError, json.JSONDecodeError, HTTPError):
-            return None
+        with urlopen(req) as res:
+            try:
+                res_json = json.load(res)
+            except (UnicodeDecodeError, json.JSONDecodeError, HTTPError):
+                return None
         return (res_json.get("locale") or {}).get("lang")
 
-    def download_xml(self, retry: bool = True) -> Path:
+    def download_xml(self) -> Path:
         """Download an XML export and return the path of the temp file."""
-        req = Request(
-            f"{self.url}/exporters/gramps/file",
-            headers={"Authorization": f"Bearer {self.access_token}"},
-        )
+        url = f"{self.url}/exporters/gramps/file"
+        temp = NamedTemporaryFile(delete=False)
         try:
-            res = urlopen(req)
-            temp = NamedTemporaryFile(delete=False)
-            chunk_size = 1024
-            chunk = res.read(chunk_size)
-            temp.write(chunk)
-            while chunk:
-                if self.download_callback is not None:
-                    self.download_callback()
-                chunk = res.read(chunk_size)
-                temp.write(chunk)
-        except HTTPError as exc:
-            if exc.code == 401 and retry:
-                # in case of 401, retry once with a new token
-                sleep(1)  # avoid server-side rate limit
-                self.fetch_token()
-                return self.download_xml(retry=False)
-            raise
-        temp.close()
+            self._download_file(url=url, fobj=temp)
+        finally:
+            temp.close()
         unzipped_name = f"{temp.name}.gramps"
         with open(unzipped_name, "wb") as fu:
             with gzip.open(temp.name) as fz:
@@ -118,6 +101,86 @@ class WebApiHandler:
                 },
             )
             urlopen(req)
+
+    def get_missing_files(self, retry: bool = True) -> None:
+        """Get a list of remote media objects with missing files."""
+        req = Request(
+            f"{self.url}/media/?filemissing=1",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+        )
+        try:
+            with urlopen(req) as res:
+                res_json = json.load(res)
+        except HTTPError as exc:
+            if exc.code == 401 and retry:
+                # in case of 401, retry once with a new token
+                sleep(1)  # avoid server-side rate limit
+                self.fetch_token()
+                return self.get_missing_files(retry=False)
+            raise
+        return res_json
+
+    def _download_file(self, url: str, fobj, retry: bool = True):
+        """Download a file."""
+        req = Request(
+            url,
+            headers={"Authorization": f"Bearer {self.access_token}"},
+        )
+        try:
+            with urlopen(req) as res:
+                chunk_size = 1024
+                chunk = res.read(chunk_size)
+                fobj.write(chunk)
+                while chunk:
+                    if self.download_callback is not None:
+                        self.download_callback()
+                    chunk = res.read(chunk_size)
+                    fobj.write(chunk)
+        except HTTPError as exc:
+            if exc.code == 401 and retry:
+                # in case of 401, retry once with a new token
+                sleep(1)  # avoid server-side rate limit
+                self.fetch_token()
+                return self._download_file(url=url, fobj=fobj, retry=False)
+            raise
+
+    def download_media_file(self, handle: str, path) -> bool:
+        """Download a media file."""
+        url = f"{self.url}/media/{handle}/file"
+        with open(path, "wb") as f:
+            self._download_file(url=url, fobj=f)
+        return True
+
+    def upload_media_file(self, handle: str, path) -> bool:
+        """Upload a media file."""
+        url = f"{self.url}/media/{handle}/file?uploadmissing=1"
+        try:
+            with open(path, "rb") as f:
+                self._upload_file(url=url, fobj=f)
+        except HTTPError as exc:
+            if exc.code == 409:
+                return False
+            raise
+        return True
+
+    def _upload_file(self, url: str, fobj, retry: bool = True):
+        """Upload a file."""
+        req = Request(
+            url,
+            data=fobj,
+            headers={"Authorization": f"Bearer {self.access_token}"},
+            method="PUT"
+        )
+        try:
+            with urlopen(req) as res:
+                pass
+        except HTTPError as exc:
+            if exc.code == 401 and retry:
+                # in case of 401, retry once with a new token
+                sleep(1)  # avoid server-side rate limit
+                self.fetch_token()
+                return self._upload_file(url=url, fobj=fobj, retry=False)
+            raise
 
 
 # special cases for type names. See https://github.com/gramps-project/gramps-webapi/issues/163#issuecomment-940361882
