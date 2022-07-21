@@ -10,7 +10,7 @@ Once the addon has reached stable status, I will request addition to https://git
 
 ## Installation
 
-This addon requires Gramps 5.1 running on Python 3.6 or newer, as well as a Gramps Web API instance running version 0.2.1 or newer.
+This addon requires Gramps 5.1 running on Python 3.6 or newer, as well as a Gramps Web API instance running version 0.3.0 or newer.
 
 [As usual](https://www.gramps-project.org/wiki/index.php/5.1_Addons#Manually_installed_Addons), to manually install the addon:
 
@@ -48,6 +48,11 @@ The principles of operation of this tool are very simple:
 
 This algorithm is simple and robust as it does not require tracking syncrhonization history. However, it works best when you *synchronize often*.
 
-## FAQ
+## Media file synchronization
 
-TODO
+*After* the databases have been synchronized, the tool checks for any new or updated media files. It displays the files missing locally or on the remote server and, upon user confirmation, tries to download and upload the files.
+
+Limitations:
+
+- If a local file has a different checksum from the one stored in the Gramps database (this can happen e.g. for Word files when edited after being added to Gramps), the upload will fail with an error message.
+- The tool does not check integrity of all local files, so if a local file exist under the path stored for the media object, but the file is different from the file on the server, the tool will not detect it. Use the Media Verify Addon to detect files with incorrect checksums.
