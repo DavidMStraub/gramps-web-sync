@@ -76,7 +76,7 @@ def set_password(service: str, username: str, password: str) -> None:
 
 
 class WebApiSyncTool(BatchTool, ManagedWindow):
-    """Main class for the Web API Sync tool."""
+    """Main class for the Gramps Web Sync tool."""
 
     def __init__(self, dbstate, user, options_class, name, *args, **kwargs) -> None:
         """Initialize GUI."""
@@ -93,7 +93,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         self.config.load()
 
         self.assistant = Gtk.Assistant()
-        self.set_window(self.assistant, None, _("Web API Sync"))
+        self.set_window(self.assistant, None, _("Gramps Web Sync"))
         self.setup_configs("interface.webapisync", 780, 600)
 
         self.assistant.connect("close", self.do_close)
@@ -116,7 +116,11 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         self.add_page(self.loginpage, Gtk.AssistantPageType.CONTENT, _("Login"))
 
         self.progress_page = ProgressPage(self.assistant)
-        self.add_page(self.progress_page, Gtk.AssistantPageType.PROGRESS, _("Progress Information"))
+        self.add_page(
+            self.progress_page,
+            Gtk.AssistantPageType.PROGRESS,
+            _("Progress Information"),
+        )
 
         self.confirmation = ConfirmationPage(self.assistant)
         self.add_page(
@@ -139,7 +143,9 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
 
         self.file_progress_page = FileProgressPage(self.assistant)
         self.add_page(
-            self.file_progress_page, Gtk.AssistantPageType.PROGRESS, _("Progress Information")
+            self.file_progress_page,
+            Gtk.AssistantPageType.PROGRESS,
+            _("Progress Information"),
         )
 
         self.conclusion = ConclusionPage(self.assistant)
@@ -162,7 +168,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
 
     def build_menu_names(self, obj):
         """Override :class:`.ManagedWindow` method."""
-        return (_("Web API Sync"), None)
+        return (_("Gramps Web Sync"), None)
 
     def do_close(self, assistant):
         """Close the assistant."""
@@ -199,7 +205,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             )
             if self.api is None:
                 return None
-            self.progress_page.label.set_text("Fetching remote data...")
+            self.progress_page.label.set_text(_("Fetching remote data..."))
             t = threading.Thread(target=self.async_compare_dbs)
             t.start()
         elif page == self.confirmation:
@@ -208,11 +214,11 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             self.assistant.commit()
             if self.file_sync_page.unchanged:
                 self.file_sync_page.label.set_text(
-                    _("Your Tree and import are the same.")
+                    _("Both trees are the same.")
                 )
             else:
                 self.file_sync_page.label.set_text(
-                    f"Successfully synchronized {len(self.actions)} objects."
+                    _("Successfully synchronized %s objects.") % len(self.actions)
                 )
         elif page == self.file_confirmation:
             self.files_missing_local = self.get_missing_files_local()
@@ -232,22 +238,25 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         elif page == self.conclusion:
             text = ""
             if self.conclusion.unchanged:
-                text += "Media files are in sync."
+                text += _("Media files are in sync.")
             else:
                 if self.downloaded:
                     ok = sum([b for gid, b in self.downloaded.items()])
                     nok = sum([not b for gid, b in self.downloaded.items()])
                     if ok:
-                        text += f"Successfully downloaded {ok} media files. "
+                        text += _("Successfully downloaded %s media files.") % ok
+                        text += " "
                     if nok:
-                        text += f"Encountered {nok} errors during download. "
+                        text += _("Encountered %s errors during download.") % nok
+                        text += " "
                 if self.uploaded:
                     ok = sum([b for gid, b in self.uploaded.items()])
                     nok = sum([not b for gid, b in self.uploaded.items()])
                     if ok:
-                        text += f"Successfully uploaded {ok} media files. "
+                        text += _("Successfully uploaded %s media files.") % ok
+                        text += " "
                     if nok:
-                        text += f"""Encountered {nok} errors during upload."""
+                        text += _("Encountered %s errors during upload.") % nok
             self.conclusion.label.set_text(text)
             self.conclusion.set_complete()
 
@@ -263,7 +272,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             try:
                 self.commit()
             except:
-                self.handle_error("Unexpected error while applying changes.")
+                self.handle_error(_("Unexpected error while applying changes."))
         elif page == self.file_confirmation:
             pass
 
@@ -273,12 +282,8 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             return
         res = {}
         for gramps_id, handle in self.files_missing_local:
-            import time
-            time.sleep(3)
             self.downloaded[gramps_id] = self._download_file(handle)
             self._update_file_progress()
-            import time
-            time.sleep(3)
         return res
 
     def _update_file_progress(self):
@@ -295,7 +300,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         try:
             obj = self.db1.get_media_from_handle(handle)
         except HandleError:
-            self.handle_error("Error accessing media object.")
+            self.handle_error(_("Error accessing media object."))
             return
         path = media_path_full(self.db1, obj.get_path())
         return self.api.download_media_file(handle=handle, path=path)
@@ -306,12 +311,8 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             return
         res = {}
         for gramps_id, handle in self.files_missing_remote:
-            import time
-            time.sleep(3)
             self.uploaded[gramps_id] = self._upload_file(handle)
             self._update_file_progress()
-            import time
-            time.sleep(3)
         return res
 
     def _upload_file(self, handle):
@@ -319,7 +320,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         try:
             obj = self.db1.get_media_from_handle(handle)
         except HandleError:
-            self.handle_error("Error accessing media object.")
+            self.handle_error(_("Error accessing media object."))
             return
         path = media_path_full(self.db1, obj.get_path())
         return self.api.upload_media_file(handle=handle, path=path)
@@ -357,7 +358,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         db2 = import_as_dict(str(path), self._user)
         path.unlink()  # delete temporary file
         self.db2 = db2
-        self.progress_page.label.set_text("Comparing local and remote data...")
+        self.progress_page.label.set_text(_("Comparing local and remote data..."))
         timestamp = self.config.get("credentials.timestamp") or None
         self.sync = WebApiSyncDiffHandler(
             self.db1, self.db2, user=self._user, last_synced=timestamp
@@ -457,7 +458,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
 
     def commit(self):
         """Commit all changes to the databases."""
-        msg = "Apply Web API Sync changes"
+        msg = "Apply Gramps Web Sync changes"
         with DbTxn(msg, self.sync.db1) as trans1:
             with DbTxn(msg, self.sync.db2) as trans2:
                 self.sync.commit_actions(self.actions, trans1, trans2)
@@ -636,10 +637,7 @@ class FileProgressPage(Page):
         else:
             self.label1.show()
             # self.progressbar1.show()
-            if n_down == 1:
-                self.label1.set_text(f"Downloading {n_down} media file")
-            else:
-                self.label1.set_text(f"Downloading {n_down} media files")
+            self.label1.set_text(_("Downloading %s media file(s)") % n_down)
         n_up = len(files_missing_remote)
         if not n_up:
             self.label2.hide()
@@ -647,10 +645,7 @@ class FileProgressPage(Page):
         else:
             self.label2.show()
             # self.progressbar2.show()
-            if n_up == 1:
-                self.label2.set_text(f"Uploading {n_up} media file")
-            else:
-                self.label2.set_text(f"Uploading {n_up} media files")
+            self.label2.set_text(_("Uploading %s media file(s)") % n_up)
 
     def update_progress(
         self, files_missing_local, files_missing_remote, downloaded, uploaded
@@ -746,7 +741,7 @@ class FileSyncPage(Page):
         self.label = label
         self.unchanged = False
         self.pack_start(self.label, False, False, 0)
-        label = Gtk.Label(label="Click Next to synchonize media files.")
+        label = Gtk.Label(label=_("Click Next to synchonize media files."))
         label.set_line_wrap(True)
         label.set_use_markup(True)
         label.set_max_width_chars(60)
@@ -776,10 +771,10 @@ class FileConfirmationPage(Page):
         self.pack_start(scrolled_window, True, True, 0)
 
     def prepare(self, missing_local, missing_remote):
-        iter_local = self.store.append(None, ["Missing locally"])
+        iter_local = self.store.append(None, [_("Missing locally")])
         for (gramps_id, handle) in missing_local:
             self.store.append(iter_local, [gramps_id])
-        iter_remote = self.store.append(None, ["Missing remotely"])
+        iter_remote = self.store.append(None, [_("Missing remotely")])
         for (gramps_id, handle) in missing_remote:
             self.store.append(iter_remote, [gramps_id])
 
@@ -806,4 +801,4 @@ class ConclusionPage(Page):
 
 
 class WebApiSyncOptions(ToolOptions):
-    """Options for Web API Sync."""
+    """Options for Gramps Web Sync."""

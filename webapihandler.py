@@ -1,4 +1,4 @@
-"""Web API handler class for the Web API sync plugin."""
+"""Web API handler class for the Gramps Web Sync plugin."""
 
 import gzip
 import json

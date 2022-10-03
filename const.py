@@ -1,4 +1,4 @@
-"""Constants for Web API Sync."""
+"""Constants for Gramps Web Sync."""
 
 from typing import List, Optional, Tuple
 from gramps.gen.lib.primaryobj import BasicPrimaryObject
