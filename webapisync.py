@@ -711,9 +711,15 @@ class ConfirmationPage(Page):
                     _type, handle, class_name, obj1, obj2 = action
                     if _type == action_type:
                         if obj1 is not None:
-                            gid = obj1.gramps_id
+                            if class_name == "Tag":
+                                gid = obj1.name
+                            else:
+                                gid = obj1.gramps_id
                         else:
-                            gid = obj2.gramps_id
+                            if class_name == "Tag":
+                                gid = obj2.name
+                            else:    
+                                gid = obj2.gramps_id
                         obj_details = [class_name, gid]
                         rows.append(obj_details)
                 if rows:
