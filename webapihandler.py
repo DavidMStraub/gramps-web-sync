@@ -120,12 +120,17 @@ class WebApiHandler:
             raise
         return res_json
 
-    def _download_file(self, url: str, fobj, retry: bool = True):
+    def _download_file(
+        self, url: str, fobj, retry: bool = True, token_url: bool = False
+    ):
         """Download a file."""
-        req = Request(
-            url,
-            headers={"Authorization": f"Bearer {self.access_token}"},
-        )
+        if token_url:
+            req = Request(f"{url}?jwt={self.access_token}")
+        else:
+            req = Request(
+                url,
+                headers={"Authorization": f"Bearer {self.access_token}"},
+            )
         try:
             with urlopen(req) as res:
                 chunk_size = 1024
@@ -141,14 +146,16 @@ class WebApiHandler:
                 # in case of 401, retry once with a new token
                 sleep(1)  # avoid server-side rate limit
                 self.fetch_token()
-                return self._download_file(url=url, fobj=fobj, retry=False)
+                return self._download_file(
+                    url=url, fobj=fobj, retry=False, token_url=token_url
+                )
             raise
 
     def download_media_file(self, handle: str, path) -> bool:
         """Download a media file."""
         url = f"{self.url}/media/{handle}/file"
         with open(path, "wb") as f:
-            self._download_file(url=url, fobj=f)
+            self._download_file(url=url, fobj=f, token_url=True)
         return True
 
     def upload_media_file(self, handle: str, path) -> bool:
@@ -169,7 +176,7 @@ class WebApiHandler:
             url,
             data=fobj,
             headers={"Authorization": f"Bearer {self.access_token}"},
-            method="PUT"
+            method="PUT",
         )
         try:
             with urlopen(req) as res:
