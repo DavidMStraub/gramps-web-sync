@@ -21,7 +21,11 @@
 import os
 import threading
 from datetime import datetime
-from typing import Callable, Optional
+try:
+    from typing import Callable, Optional
+except ImportError:
+    Callable = type
+    Optional = type
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 

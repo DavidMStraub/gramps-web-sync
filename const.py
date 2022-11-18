@@ -1,6 +1,11 @@
 """Constants for Gramps Web Sync."""
 
-from typing import List, Optional, Tuple
+try:
+    from typing import List, Optional, Tuple
+except ImportError:
+    List = type
+    Optional = type
+    Tuple = type
 from gramps.gen.lib.primaryobj import BasicPrimaryObject
 
 

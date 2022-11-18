@@ -6,7 +6,14 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional
+try:
+    from typing import Any, Callable, Dict, List, Optional
+except ImportError:
+    Any = type
+    Callable = type
+    Dict = type
+    List = type
+    Optional = type
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
