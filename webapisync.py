@@ -24,8 +24,9 @@ from datetime import datetime
 try:
     from typing import Callable, Optional
 except ImportError:
-    Callable = type
-    Optional = type
+    from const import Type
+    Callable = Type
+    Optional = Type
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 

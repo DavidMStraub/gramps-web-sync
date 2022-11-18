@@ -4,10 +4,11 @@ from copy import deepcopy
 try:
     from typing import List, Optional, Set, Tuple
 except ImportError:
-    List = type
-    Optional = type
-    Set = type
-    Tuple = type
+    from const import Type
+    List = Type
+    Optional = Type
+    Set = Type
+    Tuple = Type
 
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
