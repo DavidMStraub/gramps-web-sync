@@ -752,7 +752,7 @@ class FileSyncPage(Page):
         self.label = label
         self.unchanged = False
         self.pack_start(self.label, False, False, 0)
-        label = Gtk.Label(label=_("Click Next to synchonize media files."))
+        label = Gtk.Label(label=_("Click Next to synchronize media files."))
         label.set_line_wrap(True)
         label.set_use_markup(True)
         label.set_max_width_chars(60)
