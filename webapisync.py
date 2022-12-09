@@ -341,8 +341,8 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
     def handle_error(self, message):
         """Handle an error message during sync."""
         self.conclusion.error = True
-        self.conclusion.label.set_text(message)  #
         self.assistant.next_page()
+        self.conclusion.label.set_text(message)  #
         self.conclusion.set_complete()
 
     def handle_unchanged(self):
