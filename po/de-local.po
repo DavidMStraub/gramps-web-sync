@@ -70,7 +70,7 @@ msgstr "Mediendateien sind schon synchron."
 #: GrampsWebSync/webapisync.py:247
 #, python-format
 msgid "Successfully downloaded %s media files."
-msgstr "%s Mediendateien erfolgreich heruntergeladen"
+msgstr "%s Mediendateien erfolgreich heruntergeladen."
 
 #: GrampsWebSync/webapisync.py:250
 #, python-format
@@ -138,9 +138,9 @@ msgid ""
 "You have specified a URL with http scheme. If you continue, your password "
 "will be sent in clear text over the network. Use only for local testing!"
 msgstr ""
-"Du hast eine URL im http-Schema angegeben. Wenn du fortsetzt, wird dein "
-"Passwort unverschlüsselt übers Netzwerk übertragen. Nur für lokales Testen "
-"geeignet!"
+"Es wurde eine URL im http-Schema angegeben. Damit wird das Passwort "
+"unverschlüsselt über das Netzwerk übertragen. Bitte ausschliesslich "
+"für lokales Testen verwenden!"
 
 #: GrampsWebSync/webapisync.py:443
 msgid "Continue with HTTP"
