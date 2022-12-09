@@ -48,7 +48,7 @@ msgstr ""
 
 #: GrampsWebSync/webapisync.py:141
 msgid "Media Files"
-msgstr ""
+msgstr "Mediendateien"
 
 #: GrampsWebSync/webapisync.py:208
 msgid "Fetching remote data..."
@@ -165,6 +165,21 @@ msgid ""
 "If you instead want to merge two significantly different trees with the "
 "option to make manual modifications, use the Import Merge Tool instead."
 msgstr ""
+"Dieses Programm synchronisiert den aktuell geöffneten Stammbaum mit einem "
+"entfernten, von Gramps Web bereitgestellten Stammbaum.\n"
+"\n"
+"Die Synchronisierung funktioniert nur wenn beide Stammbäume die gleiche "
+"Basis haben. Das heisst, der eine Stammbaum muss aus dem Gramps XML "
+"(not GEDCOM!) Export des anderen Stammbaums erzeugt wurden sein.\n"
+"\n"
+"Nach der erfolgreichen Synchronisierung sind beide Stammbäume identisch. "
+"Die Änderungen zwischen den Stammbäumen werden anhand ihrer Zeitstempel erkannt.\n"
+"Alle geplanten Änderungen an dem lokalen oder entfernten Stammbaum können vorab "
+"bestätigt werden.\n"
+"\n"
+"Zum Zusammenführen von zwei sehr unterschiedlichen Stammbäumen sollte ein "
+"anderes Programm, das Import Merge Tool, verwendet werden. Dieses erlaubt "
+"auch den manuellen Eingriff beim Zusammenführen."
 
 #: GrampsWebSync/webapisync.py:556
 msgid "Server URL: "
