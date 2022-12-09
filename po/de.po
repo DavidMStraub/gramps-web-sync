@@ -210,7 +210,7 @@ msgid "Simultaneous changes"
 msgstr ""
 
 #: GrampsWebSync/webapisync.py:744
-msgid "Click Next to synchonize media files."
+msgid "Click Next to synchronize media files."
 msgstr ""
 
 #: GrampsWebSync/webapisync.py:774
