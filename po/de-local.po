@@ -1,7 +1,6 @@
-# German translations for PACKAGE package.
-# Copyright (C) 2022 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# David Straub <straub@protonmail.com>, 2022.
+# German translations for gramps-addon-webapisync package.
+# Copyright (C) 2022    David Straub <straub@protonmail.com>
+# This file is distributed under the same license as the gramps-addon-webapisync package.
 #
 msgid ""
 msgstr ""
