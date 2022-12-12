@@ -1,7 +1,6 @@
-# German translations for PACKAGE package.
-# Copyright (C) 2022 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# David Straub <straub@protonmail.com>, 2022.
+# German translations for gramps-addon-webapisync package.
+# Copyright (C) 2022    David Straub <straub@protonmail.com>
+# This file is distributed under the same license as the gramps-addon-webapisync package.
 #
 msgid ""
 msgstr ""
@@ -48,7 +47,7 @@ msgstr ""
 
 #: GrampsWebSync/webapisync.py:141
 msgid "Media Files"
-msgstr ""
+msgstr "Mediendateien"
 
 #: GrampsWebSync/webapisync.py:208
 msgid "Fetching remote data..."
@@ -70,7 +69,7 @@ msgstr "Mediendateien sind schon synchron."
 #: GrampsWebSync/webapisync.py:247
 #, python-format
 msgid "Successfully downloaded %s media files."
-msgstr "%s Mediendateien erfolgreich heruntergeladen"
+msgstr "%s Mediendateien erfolgreich heruntergeladen."
 
 #: GrampsWebSync/webapisync.py:250
 #, python-format
@@ -138,9 +137,9 @@ msgid ""
 "You have specified a URL with http scheme. If you continue, your password "
 "will be sent in clear text over the network. Use only for local testing!"
 msgstr ""
-"Du hast eine URL im http-Schema angegeben. Wenn du fortsetzt, wird dein "
-"Passwort unverschlüsselt übers Netzwerk übertragen. Nur für lokales Testen "
-"geeignet!"
+"Es wurde eine URL im http-Schema angegeben. Damit wird das Passwort "
+"unverschlüsselt über das Netzwerk übertragen. Bitte ausschliesslich "
+"für lokales Testen verwenden!"
 
 #: GrampsWebSync/webapisync.py:443
 msgid "Continue with HTTP"
@@ -165,6 +164,21 @@ msgid ""
 "If you instead want to merge two significantly different trees with the "
 "option to make manual modifications, use the Import Merge Tool instead."
 msgstr ""
+"Dieses Programm synchronisiert den aktuell geöffneten Stammbaum mit einem "
+"entfernten, von Gramps Web bereitgestellten Stammbaum.\n"
+"\n"
+"Die Synchronisierung funktioniert nur wenn beide Stammbäume die gleiche "
+"Basis haben. Das heisst, der eine Stammbaum muss aus dem Gramps XML "
+"(not GEDCOM!) Export des anderen Stammbaums erzeugt wurden sein.\n"
+"\n"
+"Nach der erfolgreichen Synchronisierung sind beide Stammbäume identisch. "
+"Die Änderungen zwischen den Stammbäumen werden anhand ihrer Zeitstempel erkannt.\n"
+"Alle geplanten Änderungen an dem lokalen oder entfernten Stammbaum können vorab "
+"bestätigt werden.\n"
+"\n"
+"Zum Zusammenführen von zwei sehr unterschiedlichen Stammbäumen sollte ein "
+"anderes Programm, das Import Merge Tool, verwendet werden. Dieses erlaubt "
+"auch den manuellen Eingriff beim Zusammenführen."
 
 #: GrampsWebSync/webapisync.py:556
 msgid "Server URL: "
