@@ -21,10 +21,12 @@
 import os
 import threading
 from datetime import datetime
+
 try:
     from typing import Callable, Optional
 except ImportError:
     from const import Type
+
     Callable = Type
     Optional = Type
 from urllib.error import HTTPError, URLError
@@ -218,9 +220,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
         elif page == self.file_sync_page:
             self.assistant.commit()
             if self.file_sync_page.unchanged:
-                self.file_sync_page.label.set_text(
-                    _("Both trees are the same.")
-                )
+                self.file_sync_page.label.set_text(_("Both trees are the same."))
             else:
                 self.file_sync_page.label.set_text(
                     _("Successfully synchronized %s objects.") % len(self.actions)
@@ -486,7 +486,7 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
 
     def get_missing_files_remote(self):
         """Get a list of media files missing remotely."""
-        missing_files = self.api.get_missing_files()
+        missing_files = self.handle_server_errors(self.api.get_missing_files)
         return [(media["gramps_id"], media["handle"]) for media in missing_files]
 
 
@@ -723,7 +723,7 @@ class ConfirmationPage(Page):
                         else:
                             if class_name == "Tag":
                                 gid = obj2.name
-                            else:    
+                            else:
                                 gid = obj2.gramps_id
                         obj_details = [class_name, gid]
                         rows.append(obj_details)
@@ -783,10 +783,10 @@ class FileConfirmationPage(Page):
 
     def prepare(self, missing_local, missing_remote):
         iter_local = self.store.append(None, [_("Missing locally")])
-        for (gramps_id, handle) in missing_local:
+        for gramps_id, handle in missing_local:
             self.store.append(iter_local, [gramps_id])
         iter_remote = self.store.append(None, [_("Missing remotely")])
-        for (gramps_id, handle) in missing_remote:
+        for gramps_id, handle in missing_remote:
             self.store.append(iter_remote, [gramps_id])
 
         # expand first level
