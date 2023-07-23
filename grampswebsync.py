@@ -241,10 +241,13 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
             t = threading.Thread(target=self.async_transfer_media)
             t.start()
         elif page == self.conclusion:
-            text = ""
-            if self.conclusion.unchanged:
-                text += _("Media files are in sync.")
+            if self.conclusion.error:
+                pass
+            elif self.conclusion.unchanged:
+                text = _("Media files are in sync.")
+                self.conclusion.label.set_text(text)
             else:
+                text = ""
                 if self.downloaded:
                     ok = sum([b for gid, b in self.downloaded.items()])
                     nok = sum([not b for gid, b in self.downloaded.items()])
@@ -262,7 +265,8 @@ class WebApiSyncTool(BatchTool, ManagedWindow):
                         text += " "
                     if nok:
                         text += _("Encountered %s errors during upload.") % nok
-            self.conclusion.label.set_text(text)
+                self.conclusion.label.set_text(text)
+
             self.conclusion.set_complete()
 
     def handle_files_unchanged(self):
