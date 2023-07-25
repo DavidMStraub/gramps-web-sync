@@ -374,6 +374,8 @@ class GrampsWebSyncTool(BatchTool, ManagedWindow):
     def get_diff_actions(self):
         """Download the remote data, import it and compare it to local."""
         path = self.handle_server_errors(self.api.download_xml)
+        if path is None:
+            return None
         db2 = import_as_dict(str(path), self._user)
         path.unlink()  # delete temporary file
         self.db2 = db2
