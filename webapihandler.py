@@ -62,8 +62,10 @@ class WebApiHandler:
             with urlopen(req) as res:
                 res_json = json.load(res)
         except (UnicodeDecodeError, json.JSONDecodeError, HTTPError):
-            self.url = f"{self.url}/api"
-            return self.fetch_token()
+            if "/api" not in self.url:
+                self.url = f"{self.url}/api"
+                return self.fetch_token()
+            raise
         self._access_token = res_json["access_token"]
 
     def get_lang(self) -> Optional[str]:
