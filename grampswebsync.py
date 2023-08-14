@@ -484,7 +484,9 @@ class GrampsWebSyncTool(BatchTool, ManagedWindow):
             with DbTxn(msg, self.sync.db2) as trans2:
                 actions = self.sync.changes_to_actions(self.changes, self.confirmation.sync_mode)
                 self.sync.commit_actions(actions, trans1, trans2)
-                self.handle_server_errors(self.api.commit, trans2)
+                # force the sync if mode is NOT bidirectional
+                force = self.confirmation.sync_mode != MODE_BIDIRECTIONAL
+                self.handle_server_errors(self.api.commit, trans2, force)
         self.save_timestamp()
 
     def save_timestamp(self):
