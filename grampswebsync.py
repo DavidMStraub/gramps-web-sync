@@ -505,7 +505,7 @@ class GrampsWebSyncTool(BatchTool, ManagedWindow):
 
     def get_missing_files_remote(self):
         """Get a list of media files missing remotely."""
-        missing_files = self.handle_server_errors(self.api.get_missing_files)
+        missing_files = self.handle_server_errors(self.api.get_missing_files) or []
         return [(media["gramps_id"], media["handle"]) for media in missing_files]
 
 

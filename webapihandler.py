@@ -122,7 +122,7 @@ class WebApiHandler:
                     # Web API version might not support force parameter yet
                     self.commit(trans, force=False)
 
-    def get_missing_files(self, retry: bool = True) -> None:
+    def get_missing_files(self, retry: bool = True) -> List:
         """Get a list of remote media objects with missing files."""
         req = Request(
             f"{self.url}/media/?filemissing=1",
