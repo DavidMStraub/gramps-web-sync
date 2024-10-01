@@ -20,7 +20,7 @@ To install the development version, follow the instructions for [manual addon in
 
 ## Usage & details
 
-See https://www.grampsweb.org/user-guide/sync/.
+See https://www.grampsweb.org/administration/sync/.
 
 ## Contribute
 
